@@ -127,7 +127,8 @@ else
         strip) fn_strip "$@" ;;
         record-screen) ffmpeg -f x11grab -video_size 1920x1080 -i :0.0 $(get_enc) "$1" ;;
         help|--help) 
-            echo "Commands: trim, crop, scale, speed, reverse, upscale, normalize, stabilize, pip, chroma, watermark, text, burn-subs, lut, viz, repair, extract-audio, social-export, gif, strip, record-screen" ;;
+            echo "== SaMpeg $SAMPEG_VER ==
+            Commands: trim, crop, scale, speed, reverse, upscale, normalize, stabilize, pip, chroma, watermark, text, burn-subs, lut, viz, repair, extract-audio, social-export, gif, strip, record-screen" ;;
         *) echo "Unknown command: $cmd"; exit 1 ;;
     esac
 fi
