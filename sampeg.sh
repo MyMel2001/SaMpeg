@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # SaMpeg version
-SAMPEG_VER="1.2026j"
+SAMPEG_VER="1.2026L"
 TIMELINE_FILE="/tmp/sampeg_timeline.txt"
 
 # --- COLORS & UI ---
@@ -16,7 +16,7 @@ get_enc() {
     fi
 }
 
-# --- UNIFIED FEATURE FUNCTIONS (The Engine) ---
+# --- THE COMPLETE ENGINE (Unified Functions) ---
 fn_trim() { ffmpeg -i "$1" -ss "$3" -to "$4" $(get_enc) -c:a copy "$2"; }
 fn_crop() { ffmpeg -i "$1" -vf "crop=$3" $(get_enc) -c:a copy "$2"; }
 fn_scale() { ffmpeg -i "$1" -vf "scale=$3:force_original_aspect_ratio=decrease,pad=$3:(ow-iw)/2:(oh-ih)/2" $(get_enc) "$2"; }
@@ -29,20 +29,25 @@ fn_pip() { ffmpeg -i "$1" -i "$2" -filter_complex "[1:v]scale=$4:$5 [pip]; [0:v]
 fn_chroma() { ffmpeg -i "$1" -i "$3" -filter_complex "[0:v]colorkey=0x00FF00:0.1:0.1[ckout];[1:v][ckout]overlay" $(get_enc) "$2"; }
 fn_watermark() { ffmpeg -i "$1" -i "$3" -filter_complex "[1:v]scale=iw*0.15:-1[wm];[0:v][wm]overlay=main_w-overlay_w-10:10" $(get_enc) -c:a copy "$2"; }
 fn_text() { ffmpeg -i "$1" -vf "drawtext=text='$3':fontcolor=white:fontsize=48:x=(w-text_w)/2:y=(h-text_h)/2:borderw=2:bordercolor=black" $(get_enc) -c:a copy "$2"; }
+fn_burn_subs() { ffmpeg -i "$1" -vf "subtitles=$3" $(get_enc) -c:a copy "$2"; }
+fn_lut() { ffmpeg -i "$1" -vf "lut3d=$3" $(get_enc) "$2"; }
+fn_viz() { ffmpeg -i "$1" -filter_complex "[0:a]showwavespic=s=1920x1080:colors=cyan" -frames:v 1 "$2"; }
+fn_repair() { ffmpeg -i "$1" -c copy -map 0 "$2"; }
+fn_extract_audio() { ffmpeg -i "$1" -vn -ar 44100 -ac 2 -b:a 192k "$2"; }
+fn_strip() { ffmpeg -i "$1" -map_metadata -1 -c:v copy -c:a copy "$2"; }
 fn_social() {
     ffmpeg -i "$1" -vf "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2" $(get_enc) "${2}_16-9.mp4"
     ffmpeg -i "$1" -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920" $(get_enc) "${2}_9-16.mp4"
     ffmpeg -i "$1" -vf "scale=1080:1080:force_original_aspect_ratio=increase,crop=1080:1080" $(get_enc) "${2}_1-1.mp4"
 }
 fn_gif() { ffmpeg -i "$1" -vf "fps=15,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" "$2"; }
-fn_strip() { ffmpeg -i "$1" -map_metadata -1 -c:v copy -c:a copy "$2"; }
 
 # --- GUI MODE ---
 gui_mode() {
     while true; do
-        CAT=$(zenity --list --title="SaMpeg Suite v$SAMPEG_VER" --width=600 --height=600 --column="Category" --column="Description" \
+        CAT=$(zenity --list --title="SaMpeg Suite v$SAMPEG_VER" --width=650 --height=650 --column="Category" --column="Description" \
             "PROJECT" "NLE Timeline & Recording" "TRANSFORMS" "Trim, Crop, Scale, Speed, Reverse" \
-            "VFX" "Upscale, Chroma, PIP, Watermark, Text" "AUDIO/COLOR" "Normalize, Stabilize, Silence, Color" \
+            "VFX & PRO LAB" "Upscale, Chroma, PIP, LUTs, Watermark, Subs" "AUDIO & COLOR" "Normalize, Stabilize, Repair, Visualizer" \
             "EXPORT" "Social Media, GIF, Metadata" "EXIT" "Quit")
         [[ -z "$CAT" || "$CAT" == "EXIT" ]] && exit 0
 
@@ -53,44 +58,42 @@ gui_mode() {
                 [[ "$ACT" == "Trim" ]] && fn_trim "$IN" "$OUT" $(zenity --entry --text="Start") $(zenity --entry --text="End")
                 [[ "$ACT" == "Crop" ]] && fn_crop "$IN" "$OUT" $(zenity --entry --text="W:H:X:Y")
                 [[ "$ACT" == "Scale" ]] && fn_scale "$IN" "$OUT" $(zenity --entry --text="Res" --entry-text="1920:1080")
-                [[ "$ACT" == "Speed" ]] && fn_speed "$IN" "$OUT" $(zenity --entry --text="Mult" --entry-text="2.0")
+                [[ "$ACT" == "Speed" ]] && fn_speed "$IN" "$OUT" $(zenity --entry --text="Mult")
                 [[ "$ACT" == "Reverse" ]] && fn_reverse "$IN" "$OUT"
                 ;;
-            "VFX")
-                ACT=$(zenity --list --column="Action" "Upscale" "Chroma" "PIP" "Watermark" "Text")
+            "VFX & PRO LAB")
+                ACT=$(zenity --list --column="Action" "Upscale" "Chroma" "PIP" "LUT Grade" "Watermark" "Burn Subs")
                 IN=$(zenity --file-selection); OUT=$(zenity --file-selection --save)
                 [[ "$ACT" == "Upscale" ]] && fn_upscale "$IN" "$OUT"
                 [[ "$ACT" == "Chroma" ]] && fn_chroma "$IN" "$OUT" $(zenity --file-selection --title="BG")
-                [[ "$ACT" == "PIP" ]] && fn_pip "$IN" $(zenity --file-selection --title="Overlay") "$OUT" 480 270 10 10
-                [[ "$ACT" == "Watermark" ]] && fn_watermark "$IN" "$OUT" $(zenity --file-selection --title="Logo")
-                [[ "$ACT" == "Text" ]] && fn_text "$IN" "$OUT" "$(zenity --entry --text="Text")"
+                [[ "$ACT" == "LUT Grade" ]] && fn_lut "$IN" "$OUT" $(zenity --file-selection --title="Select .cube")
+                [[ "$ACT" == "Burn Subs" ]] && fn_burn_subs "$IN" "$OUT" $(zenity --file-selection --title="Select SRT")
                 ;;
-            "AUDIO/COLOR")
-                ACT=$(zenity --list --column="Action" "Normalize" "Stabilize" "Grayscale")
+            "AUDIO & COLOR")
+                ACT=$(zenity --list --column="Action" "Normalize" "Stabilize" "Repair Video" "Waveform Viz")
                 IN=$(zenity --file-selection); OUT=$(zenity --file-selection --save)
                 [[ "$ACT" == "Normalize" ]] && fn_normalize "$IN" "$OUT"
                 [[ "$ACT" == "Stabilize" ]] && fn_stabilize "$IN" "$OUT"
-                [[ "$ACT" == "Grayscale" ]] && ffmpeg -i "$IN" -vf format=gray $(get_enc) "$OUT"
-                ;;
-            "EXPORT")
-                ACT=$(zenity --list --column="Action" "Social" "GIF" "Strip")
-                IN=$(zenity --file-selection)
-                [[ "$ACT" == "Social" ]] && fn_social "$IN" "$(zenity --entry --text="Base Name")"
-                [[ "$ACT" == "GIF" ]] && fn_gif "$IN" "$(zenity --file-selection --save)"
-                [[ "$ACT" == "Strip" ]] && fn_strip "$IN" "$(zenity --file-selection --save)"
+                [[ "$ACT" == "Repair Video" ]] && fn_repair "$IN" "$OUT"
+                [[ "$ACT" == "Waveform Viz" ]] && fn_viz "$IN" "$OUT"
                 ;;
             "PROJECT")
                 ACT=$(zenity --list --column="Action" "New Timeline" "Add Clip" "Render" "Record")
                 [[ "$ACT" == "New Timeline" ]] && > "$TIMELINE_FILE"
                 [[ "$ACT" == "Add Clip" ]] && echo "$(zenity --file-selection)" >> "$TIMELINE_FILE"
-                [[ "$ACT" == "Record" ]] && ffmpeg -f x11grab -video_size 1920x1080 -i :0.0 $(get_enc) "$(zenity --file-selection --save)"
-                [[ "$ACT" == "Render" ]] && { 
-                    RES=$(zenity --entry --text="Res" --entry-text="1920:1080")
-                    OUT=$(zenity --file-selection --save)
+                [[ "$ACT" == "Render" ]] && {
+                    OUT=$(zenity --file-selection --save); RES=$(zenity --entry --text="Res" --entry-text="1920:1080")
                     TEMP_DIR=$(mktemp -d); i=0
                     while read -r line; do i=$((i+1)); ffmpeg -i "$line" -vf "scale=$RES:force_original_aspect_ratio=decrease,pad=$RES:(ow-iw)/2:(oh-ih)/2" -f mpegts "$TEMP_DIR/$i.ts" -y; done < "$TIMELINE_FILE"
                     ffmpeg -i "concat:$(ls -1 "$TEMP_DIR"/*.ts | paste -sd "|" -)" -c copy "$OUT" -y
                 }
+                ;;
+            "EXPORT")
+                ACT=$(zenity --list --column="Action" "Social" "GIF" "Strip Metadata")
+                IN=$(zenity --file-selection)
+                [[ "$ACT" == "Social" ]] && fn_social "$IN" "$(zenity --entry --text="Base Name")"
+                [[ "$ACT" == "GIF" ]] && fn_gif "$IN" "$(zenity --file-selection --save)"
+                [[ "$ACT" == "Strip Metadata" ]] && fn_strip "$IN" "$(zenity --file-selection --save)"
                 ;;
         esac
     done
@@ -114,12 +117,17 @@ else
         chroma) fn_chroma "$@" ;;
         watermark) fn_watermark "$@" ;;
         text) fn_text "$@" ;;
+        burn-subs) fn_burn_subs "$@" ;;
+        lut) fn_lut "$@" ;;
+        viz) fn_viz "$@" ;;
+        repair) fn_repair "$@" ;;
+        extract-audio) fn_extract_audio "$@" ;;
         social-export) fn_social "$@" ;;
         gif) fn_gif "$@" ;;
         strip) fn_strip "$@" ;;
         record-screen) ffmpeg -f x11grab -video_size 1920x1080 -i :0.0 $(get_enc) "$1" ;;
         help|--help) 
-            echo "Commands: trim, crop, scale, speed, reverse, upscale, normalize, stabilize, pip, chroma, watermark, text, social-export, gif, strip, record-screen" ;;
+            echo "Commands: trim, crop, scale, speed, reverse, upscale, normalize, stabilize, pip, chroma, watermark, text, burn-subs, lut, viz, repair, extract-audio, social-export, gif, strip, record-screen" ;;
         *) echo "Unknown command: $cmd"; exit 1 ;;
     esac
 fi
