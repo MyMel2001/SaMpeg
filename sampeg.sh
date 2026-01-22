@@ -4,6 +4,22 @@
 SAMPEG_VER="1.2026g"
 TIMELINE_FILE="/tmp/sampeg_timeline.txt"
 
+# --- DEPENDENCY CHECKER ---
+check_deps() {
+    local missing=()
+    for cmd in ffmpeg zenity bc xrandr; do
+        if ! command -v "$cmd" &> /dev/null; then
+            missing+=("$cmd")
+        fi
+    done
+
+    if [ ${#missing[@]} -ne 0 ]; then
+        echo -e "\033[0;31mError: Missing dependencies: ${missing[*]}\033[0m"
+        echo "Run: sudo apt install ffmpeg zenity bc x11-utils"
+        exit 1
+    fi
+}
+
 # --- COLORS & UI ---
 CYAN='\033[0;36m'; YELLOW='\033[1;33m'; GREEN='\033[0;32m'; RED='\033[0;31m'; NC='\033[0m'
 
